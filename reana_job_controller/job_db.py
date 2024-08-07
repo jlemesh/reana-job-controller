@@ -123,22 +123,9 @@ def store_job_logs(job_id, logs):
     :type logs: str
     """
     logging.info(f"Storing job logs: {job_id}")
-    if logs is None:
-        return
     JOB_DB[job_id]["log"] = logs
     try:
-        job = Session.query(Job).filter_by(id_=job_id).one()
-
-        for l in logs.splitlines():
-            logging.info(f"Storing log: {l}")
-            tt = l.strip().split(" ", 1)
-            if len(tt) < 2:
-                continue
-            log = JobLog()
-            log.job_id = job.id_
-            log.time = tt[0]
-            log.log = tt[1]
-            Session.add(log)
+        Session.query(Job).filter_by(id_=job_id).update(dict(logs=logs))
         Session.commit()
     except Exception as e:
         logging.exception(f"Exception while saving logs: {e}")

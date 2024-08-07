@@ -7,7 +7,6 @@
 """Kubernetes Job Manager."""
 
 import ast
-from datetime import datetime, timezone
 import logging
 import os
 import traceback
@@ -47,8 +46,6 @@ from reana_commons.k8s.volumes import (
     get_workspace_volume,
 )
 from reana_commons.utils import build_unique_component_name
-from reana_db.database import Session
-from reana_db.models import Job
 from retrying import retry
 
 from reana_job_controller.config import (
@@ -252,7 +249,7 @@ class KubernetesJobManager(JobManager):
             raise
 
     @classmethod
-    def _get_containers_logs(cls, backend_job_id, job_pod) -> Optional[str]:
+    def _get_containers_logs(cls, job_pod) -> Optional[str]:
         """Fetch the logs from all the containers in the given pod.
 
         :param job_pod: Pod resource coming from Kubernetes.
@@ -270,29 +267,20 @@ class KubernetesJobManager(JobManager):
                 # the logs of all containers, even if they are still running, as the job
                 # will not continue running after this anyway.
                 if container.state.terminated or container.state.running:
-                    job = Session.query(Job).filter_by(backend_job_id=backend_job_id).one()
-                    dd = 1000000
-                    if len(job.log) != 0:
-                        dd = int((datetime.now() - datetime.fromtimestamp(job.log[-1].time.timestamp())).total_seconds())
-                    try:
-                        n = job.pod_name
-                        if n is not None:
-                            container_log = (current_k8s_corev1_api_client.read_namespaced_pod_log(
-                                namespace=REANA_RUNTIME_KUBERNETES_NAMESPACE,
-                                name=job_pod.metadata.name,
-                                container=container.name,
-                                timestamps=True,
-                                since_seconds=dd,
-                            ))
-                    except Exception as e:
-                        logging.error(f"Error from Kubernetes API while getting job logs: {e}")
-                    pod_logs += "{} {}: :\n {}\n".format(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M%:S"), container.name, container_log)
+                    container_log = (
+                        current_k8s_corev1_api_client.read_namespaced_pod_log(
+                            namespace=REANA_RUNTIME_KUBERNETES_NAMESPACE,
+                            name=job_pod.metadata.name,
+                            container=container.name,
+                        )
+                    )
+                    pod_logs += "{}: :\n {}\n".format(container.name, container_log)
                     if hasattr(container.state.terminated, "reason"):
-                        pod_logs += "\n{} {}\n".format(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M%:S"), container.state.terminated.reason)
+                        pod_logs += "\n{}\n".format(container.state.terminated.reason)
                 elif container.state.waiting:
                     # No need to fetch logs, as the container has not started yet.
-                    pod_logs += "{} Container {} failed, error: {}".format(
-                        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M%:S"), container.name, container.state.waiting.message
+                    pod_logs += "Container {} failed, error: {}".format(
+                        container.name, container.state.waiting.message
                     )
 
             return pod_logs
@@ -329,7 +317,7 @@ class KubernetesJobManager(JobManager):
                 return None
             job_pod = job_pods.items[0]
 
-        logs = cls._get_containers_logs(backend_job_id, job_pod)
+        logs = cls._get_containers_logs(job_pod)
 
         if job_pod.status.reason == "DeadlineExceeded":
             if not logs:
