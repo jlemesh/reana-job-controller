@@ -28,7 +28,7 @@ from reana_job_controller.config import (
     SLURM_SSH_BANNER_TIMEOUT,
     SLURM_SSH_AUTH_TIMEOUT,
 )
-from reana_job_controller.job_db import JOB_DB, store_job_logs, update_job_status, update_job_pod_name
+from reana_job_controller.job_db import JOB_DB, store_job_logs, update_job_status
 from reana_job_controller.kubernetes_job_manager import KubernetesJobManager
 from reana_job_controller.utils import SSHClient, singleton
 
@@ -235,14 +235,6 @@ class JobMonitorKubernetes(JobMonitor):
                 ):
                     logging.info("New Pod event received: {0}".format(event["type"]))
                     job_pod = event["object"]
-                    try:
-                        backend_job_id = self.get_backend_job_id(job_pod)
-                        reana_job_id = self.get_reana_job_id(backend_job_id)
-                        update_job_pod_name(reana_job_id, job_pod.metadata.name)
-                    except Exception as e:
-                        logging.error(
-                            "Error while updating job pod name in job db: {}".format(e)
-                        )
 
                     # Each job is processed once, when reaching a final state
                     # (either successfully or not)
