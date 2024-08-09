@@ -118,6 +118,10 @@ class KubernetesJobManager(JobManager):
             for job.
         :type rucio: bool
         """
+        # we only need this for kubernetes
+        cmd += " >> /opt/app/log.log 2>&1; sleep 10; rm -f /opt/app/running"
+        logging.info(cmd)
+
         super(KubernetesJobManager, self).__init__(
             docker_img=docker_img,
             cmd=cmd,
@@ -166,11 +170,68 @@ class KubernetesJobManager(JobManager):
                                 "args": [self.cmd],
                                 "name": "job",
                                 "env": [],
-                                "volumeMounts": [],
+                                "volumeMounts": [
+                                    {
+                                        "name": "applog",
+                                        "mountPath": "/opt/app",
+                                    }
+                                ],
+                                "lifecycle": {
+                                    "postStart": {
+                                        "exec": {
+                                            "command": ["/bin/sh", "-c", "touch /opt/app/running"]
+                                        }
+                                    },
+                                    "preStop": {
+                                        "exec": {
+                                            "command": ["/bin/sh", "-c", "rm -f /opt/app/running"]
+                                        }
+                                    },
+                                }
+                            },
+                            {
+                                "image": "fluent/fluentd-kubernetes-daemonset:v1-debian-opensearch-arm64",
+                                "name": "fluentd",
+                                "env": [
+                                    {
+                                        "name": "FLUENT_UID", "value": "0"
+                                    },
+                                    {
+                                        "name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}
+                                    }
+                                ],
+                                "livenessProbe": {
+                                    "exec": {
+                                        "command": ["/bin/sh", "-c", "test -f /opt/app/running"]
+                                    },
+                                    "periodSeconds": 5,
+                                },
+                                "volumeMounts": [
+                                    {
+                                        "name": "fluentd-config",
+                                        "mountPath": "/fluentd/etc/fluent.conf",
+                                        "subPath": "fluent.conf",
+                                    },
+                                    {
+                                        "name": "applog",
+                                        "mountPath": "/opt/app",
+                                    }
+                                ],
                             }
                         ],
                         "initContainers": [],
-                        "volumes": [],
+                        "volumes": [
+                            {
+                                "name": "fluentd-config",
+                                "configMap": {
+                                    "name": "fluentd-config",
+                                },
+                            },
+                            {
+                                "name": "applog",
+                                "emptyDir": {},
+                            },
+                        ],
                         "restartPolicy": "Never",
                         # No need to wait a long time for jobs to gracefully terminate
                         "terminationGracePeriodSeconds": 5,
