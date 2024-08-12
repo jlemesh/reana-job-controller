@@ -119,7 +119,6 @@ class KubernetesJobManager(JobManager):
         :type rucio: bool
         """
         # we only need this for kubernetes
-        cmd = "trap 'touch /opt/app/dummy; echo $USER; rm -f /opt/app/running' EXIT; " + cmd
         cmd += " >> /opt/app/log.log 2>&1"
         logging.info(cmd)
 
@@ -177,22 +176,13 @@ class KubernetesJobManager(JobManager):
                                         "mountPath": "/opt/app",
                                     }
                                 ],
-                                "lifecycle": {
-                                    "postStart": {
-                                        "exec": {
-                                            "command": ["/bin/sh", "-c", "touch /opt/app/running"]
-                                        }
-                                    },
-                                    "preStop": {
-                                        "exec": {
-                                            "command": ["/bin/sh", "-c", "rm -f /opt/app/running"]
-                                        }
-                                    },
-                                }
                             },
+                        ],
+                        "initContainers": [
                             {
                                 "image": "fluent/fluentd-kubernetes-daemonset:v1-debian-opensearch-arm64",
                                 "name": "fluentd",
+                                "restartPolicy": "Always",
                                 "env": [
                                     {
                                         "name": "FLUENT_UID", "value": "0"
@@ -201,12 +191,6 @@ class KubernetesJobManager(JobManager):
                                         "name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}
                                     }
                                 ],
-                                "livenessProbe": {
-                                    "exec": {
-                                        "command": ["/bin/sh", "-c", "test -f /opt/app/running"]
-                                    },
-                                    "periodSeconds": 1,
-                                },
                                 "volumeMounts": [
                                     {
                                         "name": "fluentd-config",
@@ -220,7 +204,6 @@ class KubernetesJobManager(JobManager):
                                 ],
                             }
                         ],
-                        "initContainers": [],
                         "volumes": [
                             {
                                 "name": "fluentd-config",
