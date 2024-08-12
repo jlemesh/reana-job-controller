@@ -119,7 +119,8 @@ class KubernetesJobManager(JobManager):
         :type rucio: bool
         """
         # we only need this for kubernetes
-        cmd += " >> /opt/app/log.log 2>&1; sleep 10; rm -f /opt/app/running"
+        cmd = "trap 'touch /opt/app/dummy; echo $USER; rm -f /opt/app/running' EXIT; " + cmd
+        cmd += " >> /opt/app/log.log 2>&1"
         logging.info(cmd)
 
         super(KubernetesJobManager, self).__init__(
@@ -204,7 +205,7 @@ class KubernetesJobManager(JobManager):
                                     "exec": {
                                         "command": ["/bin/sh", "-c", "test -f /opt/app/running"]
                                     },
-                                    "periodSeconds": 5,
+                                    "periodSeconds": 1,
                                 },
                                 "volumeMounts": [
                                     {
