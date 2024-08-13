@@ -189,6 +189,9 @@ class KubernetesJobManager(JobManager):
                                     },
                                     {
                                         "name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}
+                                    },
+                                    {
+                                        "name": "BACKEND_JOB_ID", "value": backend_job_id
                                     }
                                 ],
                                 "volumeMounts": [
