@@ -38,6 +38,7 @@ from reana_job_controller.job_db import (
 from reana_job_controller.schemas import Job, JobRequest
 from reana_job_controller.utils import update_workflow_logs
 from reana_job_controller import config
+import requests
 
 
 blueprint = Blueprint("jobs", __name__)
@@ -550,13 +551,15 @@ def shutdown():
             except Exception:
                 logging.exception(f"Could not stop job {job_id} ({backend_job_id})")
                 failed_to_stop.append((job_id))
-
+    message = "All jobs stopped"
     if failed_to_stop:
-        return (
-            jsonify({"message": "Could not stop jobs " + ", ".join(failed_to_stop)}),
-            500,
-        )
-    return jsonify({"message": "All jobs stopped."}), 200
+      message = "Could not stop jobs " + ", ".join(failed_to_stop)
+
+    response = requests.get("http://localhost:24444/api/processes.flushBuffersAndKillWorkers")
+    if response.status_code == 200 and not failed_to_stop:
+      return jsonify({"message": message + ". Fluentd stopped."}), 200
+    else:
+      return jsonify({"message": message + ". Could not stop fluentd"}), 500
 
 
 @blueprint.route("/apispec", methods=["GET"])
