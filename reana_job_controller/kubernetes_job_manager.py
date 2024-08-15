@@ -119,7 +119,7 @@ class KubernetesJobManager(JobManager):
         :type rucio: bool
         """
         # we only need this for kubernetes
-        cmd += " >> /opt/app/log.log 2>&1"
+        cmd += " &>> /opt/app/log.log"
         logging.info(cmd)
 
         super(KubernetesJobManager, self).__init__(
@@ -159,7 +159,10 @@ class KubernetesJobManager(JobManager):
                 "template": {
                     "metadata": {
                         "name": backend_job_id,
-                        "labels": {"reana-run-job-workflow-uuid": self.workflow_uuid},
+                        "labels": {
+                            "reana-run-job-workflow-uuid": self.workflow_uuid,
+                            "reana-type": "job",
+                        }
                     },
                     "spec": {
                         "automountServiceAccountToken": False,
