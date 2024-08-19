@@ -183,8 +183,8 @@ class KubernetesJobManager(JobManager):
                         ],
                         "initContainers": [
                             {
-                                "image": "fluent/fluentd-kubernetes-daemonset:v1-debian-opensearch-arm64",
-                                "name": "fluentd",
+                                "image": "fluent/fluent-bit:latest-debug",
+                                "name": "fluentbit",
                                 "restartPolicy": "Always",
                                 "env": [
                                     {
@@ -199,9 +199,9 @@ class KubernetesJobManager(JobManager):
                                 ],
                                 "volumeMounts": [
                                     {
-                                        "name": "fluentd-config",
-                                        "mountPath": "/fluentd/etc/fluent.conf",
-                                        "subPath": "fluent.conf",
+                                        "name": "fluentbit-config-job",
+                                        "mountPath": "/fluent-bit/etc/fluent-bit.conf",
+                                        "subPath": "fluent-bit.conf",
                                     },
                                     {
                                         "name": "applog",
@@ -212,9 +212,9 @@ class KubernetesJobManager(JobManager):
                         ],
                         "volumes": [
                             {
-                                "name": "fluentd-config",
+                                "name": "fluentbit-config-job",
                                 "configMap": {
-                                    "name": "fluentd-config",
+                                    "name": "fluentbit-config-job",
                                 },
                             },
                             {
