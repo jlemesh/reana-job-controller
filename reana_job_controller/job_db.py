@@ -11,7 +11,7 @@
 import logging
 from reana_commons.utils import calculate_hash_of_dir, calculate_job_input_hash
 from reana_db.database import Session
-from reana_db.models import Job, JobCache, JobStatus
+from reana_db.models import Job, JobCache, JobStatus, JobLog
 
 JOB_DB = {}
 
@@ -123,9 +123,22 @@ def store_job_logs(job_id, logs):
     :type logs: str
     """
     logging.info(f"Storing job logs: {job_id}")
+    if logs is None:
+        return
     JOB_DB[job_id]["log"] = logs
     try:
-        Session.query(Job).filter_by(id_=job_id).update(dict(logs=logs))
+        job = Session.query(Job).filter_by(id_=job_id).one()
+
+        for l in logs.splitlines():
+            logging.info(f"Storing log: {l}")
+            tt = l.strip().split(" ", 1)
+            if len(tt) < 2:
+                continue
+            log = JobLog()
+            log.job_id = job.id_
+            log.time = tt[0]
+            log.log = tt[1]
+            Session.add(log)
         Session.commit()
     except Exception as e:
         logging.exception(f"Exception while saving logs: {e}")
@@ -147,3 +160,20 @@ def update_job_status(job_id, status):
         Session.commit()
     except Exception as e:
         logging.exception(f"Exception while updating status: {e}")
+
+
+def update_job_pod_name(job_id, pod_name):
+    """Update job pod name.
+
+    :param job_id: Internal REANA job ID.
+    :param pod_name: One of the possible status for jobs in REANA
+    :type job_id: str
+    :type pod_name: str
+    """
+    logging.info(f"Updating pod name of job {job_id} to {pod_name}")
+    JOB_DB[job_id]["pod_name"] = pod_name
+    try:
+        Session.query(Job).filter_by(id_=job_id).update(dict(pod_name=pod_name))
+        Session.commit()
+    except Exception as e:
+        logging.exception(f"Exception while updating pod_name: {e}")
