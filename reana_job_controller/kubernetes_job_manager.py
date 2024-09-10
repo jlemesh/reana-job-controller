@@ -122,6 +122,10 @@ class KubernetesJobManager(JobManager):
         :param secrets: User secrets, if none they will be fetched from k8s.
         :type secrets: Optional[UserSecrets]
         """
+        # we only need this for kubernetes
+        cmd += " &>> /opt/app/log.log"
+        logging.info(cmd)
+
         super(KubernetesJobManager, self).__init__(
             docker_img=docker_img,
             cmd=cmd,
@@ -168,7 +172,10 @@ class KubernetesJobManager(JobManager):
                 "template": {
                     "metadata": {
                         "name": backend_job_id,
-                        "labels": {"reana-run-job-workflow-uuid": self.workflow_uuid},
+                        "labels": {
+                            "reana-run-job-workflow-uuid": self.workflow_uuid,
+                            "reana-type": "job",
+                        }
                     },
                     "spec": {
                         "automountServiceAccountToken": False,
@@ -179,11 +186,55 @@ class KubernetesJobManager(JobManager):
                                 "args": [self.cmd],
                                 "name": "job",
                                 "env": [],
-                                "volumeMounts": [],
+                                "volumeMounts": [
+                                    {
+                                        "name": "applog",
+                                        "mountPath": "/opt/app",
+                                    }
+                                ],
+                            },
+                        ],
+                        "initContainers": [
+                            {
+                                "image": "fluent/fluent-bit:latest-debug",
+                                "name": "fluentbit",
+                                "restartPolicy": "Always",
+                                "env": [
+                                    {
+                                        "name": "FLUENT_UID", "value": "0"
+                                    },
+                                    {
+                                        "name": "POD_NAME", "valueFrom": {"fieldRef": {"fieldPath": "metadata.name"}}
+                                    },
+                                    {
+                                        "name": "BACKEND_JOB_ID", "value": backend_job_id
+                                    }
+                                ],
+                                "volumeMounts": [
+                                    {
+                                        "name": "fluentbit-config-job",
+                                        "mountPath": "/fluent-bit/etc/fluent-bit.conf",
+                                        "subPath": "fluent-bit.conf",
+                                    },
+                                    {
+                                        "name": "applog",
+                                        "mountPath": "/opt/app",
+                                    }
+                                ],
                             }
                         ],
-                        "initContainers": [],
-                        "volumes": [],
+                        "volumes": [
+                            {
+                                "name": "fluentbit-config-job",
+                                "configMap": {
+                                    "name": "fluentbit-config-job",
+                                },
+                            },
+                            {
+                                "name": "applog",
+                                "emptyDir": {},
+                            },
+                        ],
                         "restartPolicy": "Never",
                         # No need to wait a long time for jobs to gracefully terminate
                         "terminationGracePeriodSeconds": 5,
